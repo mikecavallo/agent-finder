@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy
+playwright
+fake-useragent
+openai
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+aiofiles
+pypdf2
+pydantic-settings
