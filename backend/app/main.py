@@ -1,32 +1,52 @@
+"""Agent Finder API: AI resume screening for insurance agency hiring."""
+
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import create_db_and_tables
-from .api import ai, auth, email # Import your API routers here
+from .ai.providers import get_provider
+from .api import auth, candidates, jobs
+from .config import get_settings
+from .database import init_db
+from .schemas import HealthOut
 
-app = FastAPI()
+__version__ = "0.2.0"
+logging.basicConfig(level=logging.INFO)
 
-# CORS Middleware
-origins = [
-    "http://localhost",
-    "http://localhost:3000", # Frontend URL
-]
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    init_db()
+    if settings.demo_mode:
+        from .demo.seed import seed_demo
+
+        await seed_demo(settings)
+    yield
+
+
+app = FastAPI(title="Agent Finder API", version=__version__, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=get_settings().cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
+app.include_router(candidates.router, prefix="/api", tags=["candidates"])
 
 
-# Include your API routers
-app.include_router(ai.router, prefix="/api/ai", tags=["AI Analysis"])
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(email.router, prefix="/api/email", tags=["Email Automation"])
-
-@app.get("/")
-async def root():
-    return {"message": "Welcome to the Insurance Agent Resume Scraper Backend!"}
+@app.get("/api/health", response_model=HealthOut, tags=["meta"])
+def health():
+    settings = get_settings()
+    return HealthOut(
+        status="ok",
+        provider=get_provider(settings).label,
+        demo_mode=settings.demo_mode,
+        version=__version__,
+    )

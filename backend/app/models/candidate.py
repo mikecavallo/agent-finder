@@ -1,43 +1,52 @@
-# models/candidate.py
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
 
-Base = declarative_base()
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from ..database import Base
+from .user import utcnow
+
+CANDIDATE_STATUSES = ("new", "shortlisted", "contacted", "rejected")
+
 
 class Candidate(Base):
+    """A resume submitted for a job opening, with extracted data and its screening result."""
+
     __tablename__ = "candidates"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=True)
-    phone = Column(String(50), nullable=True)
-    state = Column(String(50), nullable=False)
-    city = Column(String(100), nullable=True)
-    
-    # Profile Information
-    current_title = Column(String(255), nullable=True)
-    current_company = Column(String(255), nullable=True)
-    experience_years = Column(Integer, nullable=True)
-    education = Column(Text, nullable=True)
-    skills = Column(Text, nullable=True)
-    
-    # Source Information
-    source = Column(String(50), nullable=False)  # 'indeed' or 'linkedin'
-    profile_url = Column(String(500), nullable=True)
-    resume_path = Column(String(500), nullable=True)
-    
-    # AI Analysis
-    ai_score = Column(Float, nullable=True)
-    ai_analysis = Column(Text, nullable=True)
-    ai_analyzed_at = Column(DateTime, nullable=True)
-    
-    # Communication Tracking
-    contacted = Column(Boolean, default=False)
-    contacted_date = Column(DateTime, nullable=True)
-    email_sent = Column(Boolean, default=False)
-    email_sent_date = Column(DateTime, nullable=True)
-    
-    # Metadata
-    date_added = Column(DateTime, nullable=False)
-    last_updated = Column(DateTime, nullable=False)
-    notes = Column(Text, nullable=True)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), index=True)
+
+    # Extracted profile
+    name: Mapped[str] = mapped_column(String(255), default="Unknown candidate")
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    current_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    licenses: Mapped[list] = mapped_column(JSON, default=list)
+    languages: Mapped[list] = mapped_column(JSON, default=list)
+    years_sales: Mapped[float | None] = mapped_column(Float, nullable=True)
+    years_customer_service: Mapped[float | None] = mapped_column(Float, nullable=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+
+    # Source
+    source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resume_text: Mapped[str] = mapped_column(Text)
+
+    # Screening result
+    score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    breakdown: Mapped[list] = mapped_column(JSON, default=list)
+    strengths: Mapped[list] = mapped_column(JSON, default=list)
+    concerns: Mapped[list] = mapped_column(JSON, default=list)
+    scored_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Recruiter workflow
+    status: Mapped[str] = mapped_column(String(32), default="new", index=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    outreach_draft: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    job: Mapped["Job"] = relationship(back_populates="candidates")  # noqa: F821

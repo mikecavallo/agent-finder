@@ -1,32 +1,50 @@
+"""Database engine, session factory and table creation."""
+
+import os
+from collections.abc import Iterator
+
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# Import all models here to ensure they are registered with Base.metadata
-from .models.user import User
+from .config import get_settings
 
-# SQLite database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./data/sql_app.db"
 
-# Create the SQLAlchemy engine
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+class Base(DeclarativeBase):
+    pass
 
-# Create a SessionLocal class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create a Base class for declarative models
-Base = declarative_base()
+def _make_engine(url: str):
+    connect_args = {}
+    parsed = make_url(url)
+    if parsed.drivername.startswith("sqlite"):
+        connect_args["check_same_thread"] = False
+        # Make sure the directory for a file-backed SQLite database exists.
+        if parsed.database and parsed.database != ":memory:":
+            directory = os.path.dirname(os.path.abspath(parsed.database))
+            os.makedirs(directory, exist_ok=True)
+    return create_engine(url, connect_args=connect_args)
 
-# Dependency to get the database session
-def get_db():
+
+engine = _make_engine(get_settings().database_url)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def init_db() -> None:
+    """Create all tables. Models must be imported so they register on Base.metadata.
+
+    The original project failed with "no such table: users" because each model file
+    declared its own `declarative_base()`, so `create_all` on the shared Base saw no tables.
+    All models now inherit from the single Base above.
+    """
+    from . import models  # noqa: F401  (registers models)
+
+    Base.metadata.create_all(bind=engine)
+
+
+def get_db() -> Iterator[Session]:
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-# Function to create database tables
-def create_db_and_tables():
-    Base.metadata.create_all(bind=engine)

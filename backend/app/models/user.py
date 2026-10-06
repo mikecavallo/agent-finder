@@ -1,17 +1,24 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from datetime import datetime, timezone
 
-Base = declarative_base()
+from sqlalchemy import DateTime, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from ..database import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(255), unique=True, index=True, nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    jobs: Mapped[list["Job"]] = relationship(  # noqa: F821
+        back_populates="owner", cascade="all, delete-orphan"
+    )

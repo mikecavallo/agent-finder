@@ -1,3 +1,27 @@
-.env.example
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Data (SQLite databases, uploads)
+data/
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+dist/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
 config.bat
-node_modules
