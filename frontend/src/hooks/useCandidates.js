@@ -1,29 +1,111 @@
-import { useQuery } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../utils/api';
 
-export const useCandidates = () => {
-  const { data, isLoading, error, refetch } = useQuery('candidates', async () => {
-    const response = await api.get('/candidates'); // Assuming a /candidates endpoint
-    return response.data;
+export function useHealth() {
+  return useQuery({
+    queryKey: ['health'],
+    queryFn: async () => (await api.get('/health')).data,
+    staleTime: 60_000,
   });
+}
 
-  // Placeholder for stats calculation
-  const stats = {
-    total: data?.length || 0,
-    newToday: 0, // To be implemented
-    highScoring: data?.filter(c => c.ai_score >= 8).length || 0,
-    highScoringPercent: data?.length ? ((data.filter(c => c.ai_score >= 8).length / data.length) * 100).toFixed(2) : 0,
-    contacted: data?.filter(c => c.contacted).length || 0,
-    responseRate: 0, // To be implemented
-    resumesDownloaded: data?.filter(c => c.resume_path).length || 0,
-    resumeSuccessRate: data?.length ? ((data.filter(c => c.resume_path).length / data.length) * 100).toFixed(2) : 0,
-  };
+export function useJobs() {
+  return useQuery({ queryKey: ['jobs'], queryFn: async () => (await api.get('/jobs')).data });
+}
 
-  return {
-    candidates: data || [],
-    stats,
-    loading: isLoading,
-    error,
-    refresh: refetch,
+export function useJob(jobId) {
+  return useQuery({ queryKey: ['jobs', jobId], queryFn: async () => (await api.get(`/jobs/${jobId}`)).data });
+}
+
+export function useCreateJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload) => (await api.post('/jobs', payload)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  });
+}
+
+export function useDeleteJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId) => api.delete(`/jobs/${jobId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  });
+}
+
+export function useCandidates(jobId) {
+  return useQuery({
+    queryKey: ['candidates', jobId],
+    queryFn: async () => (await api.get(`/jobs/${jobId}/candidates`)).data,
+  });
+}
+
+export function useCandidate(candidateId) {
+  return useQuery({
+    queryKey: ['candidate', candidateId],
+    queryFn: async () => (await api.get(`/candidates/${candidateId}`)).data,
+    enabled: Boolean(candidateId),
+  });
+}
+
+function useInvalidateJob(jobId) {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ['candidates', jobId] });
+    qc.invalidateQueries({ queryKey: ['jobs'] });
   };
-};
+}
+
+export function useUploadResumes(jobId) {
+  const invalidate = useInvalidateJob(jobId);
+  return useMutation({
+    mutationFn: async (files) => {
+      const form = new FormData();
+      files.forEach((f) => form.append('files', f));
+      return (await api.post(`/jobs/${jobId}/candidates/upload`, form)).data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function usePasteResume(jobId) {
+  const invalidate = useInvalidateJob(jobId);
+  return useMutation({
+    mutationFn: async ({ text, label }) =>
+      (await api.post(`/jobs/${jobId}/candidates/text`, { text, label: label || null })).data,
+    onSuccess: invalidate,
+  });
+}
+
+function useCandidateMutation(jobId, request) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateJob(jobId);
+  return useMutation({
+    mutationFn: request,
+    onSuccess: (data) => {
+      if (data?.id) qc.setQueryData(['candidate', data.id], data);
+      invalidate();
+    },
+  });
+}
+
+export function useUpdateCandidate(jobId) {
+  return useCandidateMutation(jobId, async ({ id, ...changes }) => (await api.patch(`/candidates/${id}`, changes)).data);
+}
+
+export function useRescoreCandidate(jobId) {
+  return useCandidateMutation(jobId, async (id) => (await api.post(`/candidates/${id}/rescore`)).data);
+}
+
+export function useOutreachDraft(jobId) {
+  return useCandidateMutation(
+    jobId,
+    async ({ id, recruiterName }) =>
+      (await api.post(`/candidates/${id}/outreach`, { recruiter_name: recruiterName })).data,
+  );
+}
+
+export function useDeleteCandidate(jobId) {
+  const invalidate = useInvalidateJob(jobId);
+  return useMutation({ mutationFn: async (id) => api.delete(`/candidates/${id}`), onSuccess: invalidate });
+}

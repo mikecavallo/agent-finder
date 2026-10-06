@@ -6,6 +6,7 @@ app.ai.rubric.aggregate so it is comparable across providers.
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -144,8 +145,11 @@ class MockProvider(ScoringProvider):
         held = [lic for lic in required if _norm(lic) in {_norm(x) for x in p.licenses}]
         if required:
             score = len(held) / len(required)
-            if held:
-                a["licenses"] = (score, f"Holds {', '.join(held)} of required {', '.join(required)}.")
+            missing = [lic for lic in required if lic not in held]
+            if held and not missing:
+                a["licenses"] = (score, f"Holds all required licenses ({', '.join(held)}).")
+            elif held:
+                a["licenses"] = (score, f"Holds {', '.join(held)}; missing {', '.join(missing)}.")
             elif any(IN_PROGRESS.search(ln) and "licens" in ln.lower() for ln in resume_text.splitlines()):
                 a["licenses"] = (0.25, "Licensing is in progress; required licenses not yet held.")
             else:
@@ -222,13 +226,18 @@ class MockProvider(ScoringProvider):
 
     async def draft_outreach(self, candidate, highlights, job, recruiter_name):
         first = candidate.name.split()[0] if candidate.name else "there"
-        point = highlights[0].rstrip(".") if highlights else "your background"
+        where = f" in {job.location}" if job.location else ""
+        points = [re.sub(r"\s*\(minimum[^)]*\)", "", h).rstrip(".") for h in highlights[:2]]
+        points = [p[0].lower() + p[1:] for p in points if p]
+        stood_out = (
+            f"A couple of things stood out on your resume: {'; '.join(points)}."
+            if points
+            else "Your background caught my attention."
+        )
         return (
-            f"Subject: {job.title} opportunity{f' in {job.location}' if job.location else ''}\n\n"
+            f"Subject: {job.title} opportunity{where}\n\n"
             f"Hi {first},\n\n"
-            f"I'm {recruiter_name}, and I'm hiring for a {job.title} role"
-            f"{f' in {job.location}' if job.location else ''}. "
-            f"Your resume stood out, in particular: {point[0].lower() + point[1:] if point else ''}.\n\n"
+            f"I'm {recruiter_name}, and I'm hiring for a {job.title} role{where}. {stood_out}\n\n"
             "Would you be open to a 15-minute call this week to talk about the role and what you're "
             "looking for next?\n\n"
             f"Best regards,\n{recruiter_name}"

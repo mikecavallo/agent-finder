@@ -3,55 +3,37 @@ import api from '../utils/api';
 
 const useAuth = create((set) => ({
   user: null,
-  token: localStorage.getItem('authToken') || null,
-  isAuthenticated: !!localStorage.getItem('authToken'),
+  status: 'unknown', // unknown | authenticated | anonymous
 
   login: async (username, password) => {
-    try {
-      const response = await api.post('/auth/token', 
-        new URLSearchParams({
-          username,
-          password,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-      const { access_token } = response.data;
-      localStorage.setItem('authToken', access_token);
-      set({ user: { username }, token: access_token, isAuthenticated: true });
-      return true;
-    } catch (error) {
-      console.error("Login failed:", error);
-      set({ user: null, token: null, isAuthenticated: false });
-      return false;
-    }
+    const response = await api.post('/auth/token', new URLSearchParams({ username, password }), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    localStorage.setItem('authToken', response.data.access_token);
+    const me = await api.get('/auth/me');
+    set({ user: me.data, status: 'authenticated' });
+  },
+
+  register: async (username, email, password) => {
+    await api.post('/auth/register', { username, email, password });
   },
 
   logout: () => {
     localStorage.removeItem('authToken');
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, status: 'anonymous' });
   },
 
   checkAuth: async () => {
-    console.log("useAuth: checkAuth called");
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      try {
-        const response = await api.get('/auth/me');
-        set({ user: response.data, token, isAuthenticated: true });
-        console.log("useAuth: checkAuth success, isAuthenticated: true");
-      } catch (error) {
-        console.error("useAuth: Auth check failed:", error);
-        localStorage.removeItem('authToken');
-        set({ user: null, token: null, isAuthenticated: false });
-        console.log("useAuth: checkAuth failed, isAuthenticated: false");
-      }
-    } else {
-      console.log("useAuth: No token found, isAuthenticated: false");
-      set({ user: null, token: null, isAuthenticated: false });
+    if (!localStorage.getItem('authToken')) {
+      set({ user: null, status: 'anonymous' });
+      return;
+    }
+    try {
+      const me = await api.get('/auth/me');
+      set({ user: me.data, status: 'authenticated' });
+    } catch {
+      localStorage.removeItem('authToken');
+      set({ user: null, status: 'anonymous' });
     }
   },
 }));

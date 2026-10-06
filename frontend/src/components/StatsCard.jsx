@@ -1,25 +1,16 @@
-import React from 'react';
-
-const StatsCard = ({ title, value, icon: Icon, change, color }) => {
-    const colorClasses = {
-        blue: 'bg-blue-100 text-blue-800',
-        green: 'bg-green-100 text-green-800',
-        purple: 'bg-purple-100 text-purple-800',
-        orange: 'bg-orange-100 text-orange-800',
-    };
-
-    return (
-        <div className="bg-white rounded-lg shadow p-6 flex items-center justify-between">
-            <div>
-                <p className="text-sm font-medium text-gray-500">{title}</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
-                <p className="text-xs text-gray-500 mt-1">{change}</p>
-            </div>
-            <div className={`p-3 rounded-full ${colorClasses[color]}`}>
-                <Icon className="w-6 h-6" />
-            </div>
-        </div>
-    );
-};
+const StatsCard = ({ title, value, hint, icon: Icon }) => (
+  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5">
+    <div>
+      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+    </div>
+    {Icon && (
+      <div className="rounded-lg bg-indigo-50 p-2.5 text-indigo-600">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+    )}
+  </div>
+);
 
 export default StatsCard;

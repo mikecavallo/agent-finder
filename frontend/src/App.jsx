@@ -1,33 +1,28 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Dashboard from './components/Dashboard';
-import Login from './pages/Login';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AuthGuard from './components/AuthGuard';
-import Settings from './pages/Settings';
+import Layout from './components/Layout';
+import Candidates from './pages/Candidates';
+import Home from './pages/Home';
+import Login from './pages/Login';
 
 function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route 
-          path="/" 
+        <Route
           element={
             <AuthGuard>
-              <Dashboard />
+              <Layout />
             </AuthGuard>
           }
-        />
-        <Route 
-          path="/settings" 
-          element={
-            <AuthGuard>
-              <Settings />
-            </AuthGuard>
-          }
-        />
-        {/* Add other protected routes here */}
+        >
+          <Route path="/" element={<Home />} />
+          <Route path="/jobs/:jobId" element={<Candidates />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 
